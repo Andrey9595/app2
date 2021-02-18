@@ -1,0 +1,95 @@
+
+package com.onimus.blablasocialmedia.mvvm.data.firebase
+
+import android.util.Log
+import com.google.android.gms.auth.api.signin.GoogleSignInAccount
+import com.google.android.gms.common.api.ApiException
+import com.google.android.gms.tasks.Task
+import com.google.firebase.auth.AuthCredential
+import com.google.firebase.auth.FirebaseAuth
+import com.onimus.blablasocialmedia.mvvm.utils.AppConstants
+import io.reactivex.Completable
+import io.reactivex.CompletableEmitter
+
+
+class FirebaseManager {
+    private val firebaseAuth: FirebaseAuth by lazy {
+        FirebaseAuth.getInstance()
+    }
+
+    fun registerUser(email: String, password: String) = Completable.create { emitter ->
+        if (!emitter.isDisposed) {
+            actionFirebaseAuth(
+                firebaseAuth.createUserWithEmailAndPassword(email, password), emitter
+            )
+        }
+    }
+
+    fun logInUser(email: String, password: String) = Completable.create { emitter ->
+        if (!emitter.isDisposed) {
+            actionFirebaseAuth(firebaseAuth.signInWithEmailAndPassword(email, password), emitter)
+        }
+    }
+
+    fun logInUser(credential: AuthCredential): Completable {
+
+        return Completable.create { emitter ->
+            if (!emitter.isDisposed) {
+                actionFirebaseAuth(firebaseAuth.signInWithCredential(credential), emitter)
+            }
+        }
+    }
+
+    fun googleSignInAccount(task: Task<GoogleSignInAccount>) = Completable.create { emitter ->
+        if (!emitter.isDisposed) {
+            getAccountToLogInFirebase(task, emitter)
+        }
+    }
+
+    fun resetPassword(email: String) = Completable.create { emitter ->
+        if (!emitter.isDisposed) {
+            actionFirebaseAuth(firebaseAuth.sendPasswordResetEmail(email), emitter)
+        }
+    }
+
+    fun logout() = firebaseAuth.signOut()
+
+    fun currentUser() = firebaseAuth.currentUser
+
+    private fun <T : Any?> actionFirebaseAuth(
+        nameTask: Task<T>,
+        emitter: CompletableEmitter
+    ) {
+
+        nameTask.addOnCompleteListener {
+            if (it.isSuccessful) {
+                Log.d(
+                    AppConstants.Tag.LOG_D,
+                    "UserWithEmail:success - ${it.result.toString()}"
+                )
+                emitter.onComplete()
+            }
+        }.addOnFailureListener {
+            Log.w(AppConstants.Tag.LOG_W, "UserWithEmail:failure - ${it.message}", it.cause)
+            emitter.onError(it)
+        }
+    }
+
+    private fun <T : Any?> getAccountToLogInFirebase(
+        nameTask: Task<T>,
+        emitter: CompletableEmitter
+    ) {
+        try {
+            nameTask.getResult(ApiException::class.java)
+            Log.d(AppConstants.Tag.LOG_D, "firebaseAuthWithGoogle: ${nameTask.result.toString()}")
+            emitter.onComplete()
+
+        } catch (e: ApiException) {
+            // The ApiException status code indicates the detailed failure reason.
+            // Please refer to the GoogleSignInStatusCodes class reference for more information.
+            Log.w(AppConstants.Tag.LOG_W, "signInResult:failed code= ${e.statusCode}")
+            emitter.onError(e)
+
+        }
+    }
+}
